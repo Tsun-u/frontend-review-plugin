@@ -1,0 +1,6 @@
+app/chinese_readability/_dev/
+app/chinese_readability/data/naer/
+_dev/
+**/__pycache__/
+*.pyc
+tests/

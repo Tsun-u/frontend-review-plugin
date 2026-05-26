@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Report — {{ url }}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; margin: 0 auto; padding: 20px; color: #333; }
+  h1 { font-size: 1.4em; border-bottom: 2px solid #333; padding-bottom: 8px; }
+  h2 { font-size: 1.1em; margin-top: 24px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 0.9em; }
+  th { background: #f5f5f5; }
+  .score { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+  .score-good { background: #d4edda; color: #155724; }
+  .score-ok { background: #fff3cd; color: #856404; }
+  .score-bad { background: #f8d7da; color: #721c24; }
+  .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; border-radius: 4px; margin: 8px 0; font-size: 0.9em; }
+  .severity-critical { color: #dc3545; font-weight: bold; }
+  .severity-major { color: #fd7e14; font-weight: bold; }
+  .severity-minor { color: #6c757d; }
+  img.screenshot { max-width: 100%; border: 1px solid #ddd; margin: 4px 0; }
+  .meta { color: #666; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<h1>Frontend Review Report</h1>
+<p class="meta">
+  URL: <strong>{{ url }}</strong><br>
+  Review ID: <code>{{ review_id }}</code><br>
+  Status: <strong>{{ status }}</strong>
+</p>
+
+{% if status == 'failed' %}
+<div class="warning">Review failed: {{ error.get('message', 'Unknown error') }}</div>
+{% endif %}
+
+{% if result %}
+
+{% if result.get('worker_warnings') %}
+<h2>Worker Warnings</h2>
+{% for w in result.worker_warnings %}
+<div class="warning">⚠ {{ w }}</div>
+{% endfor %}
+{% endif %}
+
+<h2>Lighthouse Scores</h2>
+{% set lh = result.get('lighthouse', {}) %}
+<table>
+<tr>
+  <th>Performance</th><th>Accessibility</th><th>Best Practices</th><th>SEO</th>
+</tr>
+<tr>
+  {% for key in ['performance', 'accessibility', 'best_practices', 'seo'] %}
+  {% set val = lh.get(key, 0) %}
+  <td><span class="score {% if val >= 90 %}score-good{% elif val >= 50 %}score-ok{% else %}score-bad{% endif %}">{{ val }}</span></td>
+  {% endfor %}
+</tr>
+</table>
+
+{% if result.get('screenshots') %}
+<h2>Screenshots</h2>
+{% for viewport, uri in result.screenshots.items() %}
+<h3>{{ viewport }}</h3>
+<img class="screenshot" src="{{ request.scope.get('root_path', '') }}/asset/{{ review_id }}/{{ viewport }}.png" alt="{{ viewport }} screenshot">
+{% endfor %}
+{% endif %}
+
+{% if result.get('wcag_extended') %}
+<h2>WCAG Extended (APCA + WCAG 2)</h2>
+{% set wcag = result.wcag_extended %}
+<p>Total violations: <strong>{{ wcag.summary.violations_count }}</strong>
+  (Critical: {{ wcag.summary.by_severity.critical }},
+   Major: {{ wcag.summary.by_severity.major }},
+   Minor: {{ wcag.summary.by_severity.minor }})</p>
+{% if wcag.violations %}
+<table>
+<tr><th>Rule</th><th>Severity</th><th>Element</th><th>Viewport</th></tr>
+{% for v in wcag.violations[:50] %}
+<tr>
+  <td>{{ v.rule }}</td>
+  <td class="severity-{{ v.severity }}">{{ v.severity }}</td>
+  <td><code>{{ v.element_selector }}</code></td>
+  <td>{{ v.get('viewport', '-') }}</td>
+</tr>
+{% endfor %}
+{% if wcag.violations|length > 50 %}
+<tr><td colspan="4" class="meta">... and {{ wcag.violations|length - 50 }} more</td></tr>
+{% endif %}
+</table>
+{% endif %}
+{% endif %}
+
+{% if result.get('axe_violations') %}
+<h2>axe-core Violations</h2>
+<table>
+<tr><th>Rule</th><th>Impact</th><th>Node</th></tr>
+{% for v in result.axe_violations[:30] %}
+<tr>
+  <td>{{ v.rule }}</td>
+  <td>{{ v.impact }}</td>
+  <td><code>{{ v.node }}</code></td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if result.get('deepgaze') %}
+<h2>DeepGaze Saliency</h2>
+<img class="screenshot" src="{{ request.scope.get('root_path', '') }}/asset/{{ review_id }}/deepgaze_desktop_overlay.png" alt="Saliency overlay">
+<h3>Top Fixation Points</h3>
+<table>
+<tr><th>#</th><th>X</th><th>Y</th><th>Weight</th></tr>
+{% for p in result.deepgaze.top_fixation_points[:5] %}
+<tr><td>{{ loop.index }}</td><td>{{ p.x }}</td><td>{{ p.y }}</td><td>{{ "%.4f"|format(p.weight) }}</td></tr>
+{% endfor %}
+</table>
+{% if result.deepgaze.ctas_detected %}
+<h3>CTA Attention Ranking</h3>
+<table>
+<tr><th>Rank</th><th>Selector</th><th>In Top Attention</th></tr>
+{% for c in result.deepgaze.ctas_detected %}
+<tr><td>{{ c.rank }}</td><td><code>{{ c.selector }}</code></td><td>{{ "Yes" if c.in_top_attention else "No" }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+{% endif %}
+
+{% if result.get('english_readability') %}
+<h2>English Readability</h2>
+{% set er = result.english_readability %}
+<table>
+<tr><th>Flesch-Kincaid Grade</th><th>Reading Ease</th><th>SMOG</th><th>ARI</th></tr>
+<tr><td>{{ "%.1f"|format(er.flesch_kincaid_grade) }}</td><td>{{ "%.1f"|format(er.flesch_reading_ease) }}</td><td>{{ "%.1f"|format(er.smog_index) }}</td><td>{{ "%.1f"|format(er.automated_readability_index) }}</td></tr>
+</table>
+{% endif %}
+
+{% if result.get('chinese_readability') %}
+<h2>Chinese Readability</h2>
+{% set cr = result.chinese_readability %}
+{% if cr.get('backend') == 'deferred_to_client' %}
+<p class="meta">{{ cr.get('note', '') }}</p>
+{% else %}
+<table>
+<tr><th>Required Level</th><th>Target Level</th><th>Risk Score</th><th>Over Target</th><th>Backend</th></tr>
+<tr>
+  <td>{{ cr.get('required_level', '-') }}</td>
+  <td>{{ cr.get('target_level', '-') }}</td>
+  <td>{{ "%.3f"|format(cr.get('risk_score', 0)) }}</td>
+  <td>{% if cr.get('flag') %}<span class="severity-major">Yes</span>{% else %}No{% endif %}</td>
+  <td><code>{{ cr.get('backend', '-') }}</code></td>
+</tr>
+</table>
+{% if cr.get('svm_grade') is not none %}
+<p class="meta">SVM grade: {{ cr.svm_grade }} （信心距離 {{ "%.3f"|format(cr.get('confidence', 0)) }}）</p>
+{% endif %}
+{% if cr.get('hard_words') %}
+<p>難詞（{{ cr.hard_words|length }}）：{% for w in cr.hard_words[:20] %}<code>{{ w }}</code> {% endfor %}</p>
+{% endif %}
+{% if cr.get('jargon_detected') %}
+<p>非中文片段（{{ cr.jargon_detected|length }}）：{% for j in cr.jargon_detected[:20] %}<code>{{ j }}</code> {% endfor %}</p>
+{% endif %}
+{% if cr.get('hard_sentences') %}
+<h3>難句</h3>
+<table>
+<tr><th>#</th><th>Sentence</th></tr>
+{% for s in cr.hard_sentences[:10] %}
+<tr><td>{{ loop.index }}</td><td>{{ s.get('text', s) }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+{% if cr.get('warnings') %}
+{% for w in cr.warnings %}<div class="warning">⚠ {{ w }}</div>{% endfor %}
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% if result.get('text_styling') %}
+<h2>Text Styling</h2>
+{% set ts = result.text_styling %}
+<table>
+<tr><th>Links</th><th>Links w/o underline</th><th>Line-through</th><th>Bold (≥600)</th><th>Italic</th></tr>
+<tr>
+  <td>{{ ts.summary.get('links_total', 0) }}</td>
+  <td>{{ ts.summary.get('links_without_underline', 0) }}</td>
+  <td>{{ ts.summary.get('line_through_count', 0) }}</td>
+  <td>{{ ts.summary.get('bold_count', 0) }}</td>
+  <td>{{ ts.summary.get('italic_count', 0) }}</td>
+</tr>
+</table>
+{% if ts.elements %}
+<table>
+<tr><th>Selector</th><th>Text</th><th>Decoration</th><th>Weight</th><th>Style</th><th>Transform</th><th>Link</th></tr>
+{% for e in ts.elements[:40] %}
+<tr>
+  <td><code>{{ e.selector }}</code></td>
+  <td>{{ e.text }}</td>
+  <td>{{ e.text_decoration_line }}</td>
+  <td>{{ e.font_weight }}</td>
+  <td>{{ e.font_style }}</td>
+  <td>{{ e.text_transform }}</td>
+  <td>{{ "Yes" if e.is_link else "No" }}</td>
+</tr>
+{% endfor %}
+{% if ts.elements|length > 40 %}
+<tr><td colspan="7" class="meta">... and {{ ts.elements|length - 40 }} more</td></tr>
+{% endif %}
+</table>
+{% endif %}
+{% endif %}
+
+{% endif %}
+
+</body>
+</html>

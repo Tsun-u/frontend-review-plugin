@@ -1,0 +1,354 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ReviewObjectiveRequest": {
+      "title": "ReviewObjectiveRequest",
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Target URL to review",
+          "examples": ["https://example.com"]
+        },
+        "viewports": {
+          "type": "array",
+          "items": { "enum": ["desktop", "tablet", "mobile"] },
+          "default": ["desktop", "tablet", "mobile"],
+          "description": "Viewports to capture screenshots and run checks"
+        },
+        "options": {
+          "$ref": "#/definitions/ReviewOptions"
+        }
+      }
+    },
+
+    "ReviewOptions": {
+      "type": "object",
+      "properties": {
+        "skip_deepgaze": { "type": "boolean", "default": false },
+        "skip_wcag_extended": { "type": "boolean", "default": false },
+        "use_psi_api": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+
+    "ReviewObjectiveResponse": {
+      "title": "ReviewObjectiveResponse",
+      "type": "object",
+      "required": [
+        "review_id", "lighthouse", "axe_violations", "wcag_extended",
+        "screenshots", "dom_html", "extracted_text", "worker_warnings"
+      ],
+      "properties": {
+        "review_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for this review session",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+        },
+
+        "lighthouse": { "$ref": "#/definitions/LighthouseScore" },
+
+        "axe_violations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/AxeViolation" }
+        },
+
+        "wcag_extended": { "$ref": "#/definitions/WcagExtended" },
+
+        "screenshots": {
+          "type": "object",
+          "description": "Viewport name -> asset URI mapping",
+          "additionalProperties": { "type": "string" },
+          "examples": [{
+            "desktop": "asset://review-assets/550e8400/desktop.png",
+            "tablet": "asset://review-assets/550e8400/tablet.png",
+            "mobile": "asset://review-assets/550e8400/mobile.png"
+          }]
+        },
+
+        "dom_html": {
+          "type": "string",
+          "description": "Asset URI for the captured DOM HTML",
+          "examples": ["asset://review-assets/550e8400/dom.html"]
+        },
+
+        "extracted_text": { "$ref": "#/definitions/ExtractedText" },
+
+        "deepgaze": {
+          "oneOf": [
+            { "$ref": "#/definitions/DeepgazeOutput" },
+            { "type": "null" }
+          ],
+          "description": "null when skip_deepgaze=true"
+        },
+
+        "english_readability": {
+          "oneOf": [
+            { "$ref": "#/definitions/EnglishReadability" },
+            { "type": "null" }
+          ],
+          "description": "null when page language is not English"
+        },
+
+        "chinese_readability": {
+          "oneOf": [
+            { "$ref": "#/definitions/ChineseReadability" },
+            { "type": "null" }
+          ],
+          "description": "null when page language is not Chinese. backend field indicates tbcl_rules_v1 / svm_sung2014_v1 / tbcl_rules_v1_fallback"
+        },
+
+        "worker_warnings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Warnings from workers that failed gracefully (e.g. lighthouse timeout, axe injection error). Empty array when all workers succeeded.",
+          "examples": [["lighthouse: timed out after 60s", "deepgaze: timed out after 30s"]]
+        }
+      }
+    },
+
+    "LighthouseScore": {
+      "type": "object",
+      "required": ["performance", "accessibility", "best_practices", "seo"],
+      "properties": {
+        "performance": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "accessibility": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "best_practices": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "seo": { "type": "integer", "minimum": 0, "maximum": 100 }
+      },
+      "examples": [{ "performance": 89, "accessibility": 92, "best_practices": 95, "seo": 100 }]
+    },
+
+    "AxeViolation": {
+      "type": "object",
+      "required": ["rule", "node", "impact"],
+      "properties": {
+        "rule": { "type": "string", "examples": ["color-contrast"] },
+        "node": { "type": "string", "description": "CSS selector of the violating node" },
+        "impact": { "enum": ["minor", "moderate", "serious", "critical"] }
+      }
+    },
+
+    "WcagExtended": {
+      "type": "object",
+      "required": ["summary", "violations"],
+      "properties": {
+        "summary": {
+          "type": "object",
+          "required": ["violations_count", "by_severity"],
+          "properties": {
+            "violations_count": { "type": "integer", "minimum": 0 },
+            "by_severity": {
+              "type": "object",
+              "required": ["critical", "major", "minor"],
+              "properties": {
+                "critical": { "type": "integer", "minimum": 0 },
+                "major": { "type": "integer", "minimum": 0 },
+                "minor": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "violations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/WcagViolation" }
+        }
+      }
+    },
+
+    "WcagViolation": {
+      "type": "object",
+      "required": ["rule", "element_selector", "severity", "bbox"],
+      "properties": {
+        "rule": {
+          "enum": ["contrast", "tap_target", "font_size", "line_height", "focus_indicator_missing", "text_overflow_no_title"]
+        },
+        "element_selector": { "type": "string" },
+        "severity": { "enum": ["critical", "major", "minor"] },
+        "bbox": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[x, y, width, height]"
+        },
+        "viewport": {
+          "enum": ["desktop", "tablet", "mobile"],
+          "description": "Which viewport this violation was detected in"
+        },
+        "fg": { "type": "string", "description": "Foreground color (contrast rule only)" },
+        "bg": { "type": "string", "description": "Background color (contrast rule only)" },
+        "apca": {
+          "type": "object",
+          "properties": {
+            "lc": { "type": "integer" },
+            "verdict": { "enum": ["pass", "fail_body_text", "fail_large_text"] }
+          },
+          "description": "APCA details (contrast rule only)"
+        },
+        "wcag2": {
+          "type": "object",
+          "properties": {
+            "ratio": { "type": "number" },
+            "aa_normal": { "type": "boolean" },
+            "aa_large": { "type": "boolean" },
+            "aaa_normal": { "type": "boolean" },
+            "aaa_large": { "type": "boolean" },
+            "large_text": { "type": "boolean" }
+          },
+          "description": "WCAG 2.x details (contrast rule only)"
+        },
+        "current_size": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[width, height] in px (tap_target rule only)"
+        },
+        "expected_size": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[44, 44] (tap_target rule only)"
+        },
+        "current": { "type": "string", "description": "Current value (font_size / line_height rules)" },
+        "expected": { "type": "string", "description": "Expected value (font_size / line_height rules)" },
+        "note": { "type": "string", "description": "Additional info (focus_indicator_missing rule)" },
+        "text_preview": { "type": "string", "description": "Truncated text (text_overflow_no_title rule)" }
+      }
+    },
+
+    "ExtractedText": {
+      "type": "object",
+      "required": ["by_section", "language_detected"],
+      "properties": {
+        "by_section": {
+          "type": "object",
+          "description": "Section name -> extracted innerText",
+          "properties": {
+            "header": { "type": "string" },
+            "main": { "type": "string" },
+            "footer": { "type": "string" }
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "language_detected": {
+          "type": "string",
+          "description": "ISO 639-1 language code detected from page text",
+          "examples": ["zh-TW", "en", "unknown"]
+        }
+      }
+    },
+
+    "DeepgazeOutput": {
+      "type": "object",
+      "required": ["saliency_heatmap", "saliency_overlay", "top_fixation_points", "ctas_detected"],
+      "properties": {
+        "saliency_heatmap": {
+          "type": "string",
+          "description": "Asset URI for the raw saliency heatmap PNG"
+        },
+        "saliency_overlay": {
+          "type": "string",
+          "description": "Asset URI for the heatmap overlaid on the screenshot"
+        },
+        "top_fixation_points": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/FixationPoint" },
+          "description": "Top-10 predicted fixation points by saliency weight"
+        },
+        "ctas_detected": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/CtaDetection" },
+          "description": "CTA elements ranked by attention overlap"
+        }
+      }
+    },
+
+    "FixationPoint": {
+      "type": "object",
+      "required": ["x", "y", "weight"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "examples": [{ "x": 320, "y": 180, "weight": 0.87 }]
+    },
+
+    "CtaDetection": {
+      "type": "object",
+      "required": ["selector", "bbox", "in_top_attention", "rank"],
+      "properties": {
+        "selector": { "type": "string", "description": "CSS selector of the CTA element" },
+        "bbox": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[x, y, width, height]"
+        },
+        "in_top_attention": {
+          "type": "boolean",
+          "description": "Whether CTA overlaps with top-3 fixation area"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Rank by attention overlap (1 = most attention)"
+        }
+      }
+    },
+
+    "EnglishReadability": {
+      "type": "object",
+      "required": ["flesch_kincaid_grade", "flesch_reading_ease", "smog_index", "automated_readability_index"],
+      "properties": {
+        "flesch_kincaid_grade": { "type": "number", "examples": [8.2] },
+        "flesch_reading_ease": { "type": "number", "examples": [65.0] },
+        "smog_index": { "type": "number", "examples": [9.1] },
+        "automated_readability_index": { "type": "number", "examples": [8.5] }
+      }
+    },
+
+    "ChineseReadability": {
+      "type": "object",
+      "required": ["required_level", "risk_score", "flag", "target_level", "text_length", "backend"],
+      "properties": {
+        "required_level": { "enum": ["L1", "L2", "L3", "L4"], "description": "Estimated reader level needed" },
+        "risk_score": { "type": "number", "minimum": 0 },
+        "flag": { "type": "boolean", "description": "true if text exceeds target_level" },
+        "target_level": { "enum": ["L1", "L2", "L3", "L4"] },
+        "text_length": { "type": "integer", "minimum": 0, "description": "CJK character count" },
+        "backend": {
+          "enum": ["tbcl_rules_v1", "svm_sung2014_v1", "tbcl_rules_v1_fallback", "hybrid_v1"],
+          "description": "Which analysis backend was used (auto-selected by text length)"
+        },
+        "hard_words": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "jargon_detected": { "type": "array", "items": { "type": "string" }, "description": "Detected jargon items (abbreviations, codes, URLs)" },
+        "jargon_details": { "type": "object", "description": "Detailed jargon breakdown by category" },
+        "svm_grade": { "type": "integer", "minimum": 1, "maximum": 4, "description": "SVM predicted grade (only when backend=svm_sung2014_v1)" },
+        "confidence": { "type": "number", "description": "SVM decision distance (only when backend=svm_sung2014_v1)" },
+        "hard_sentences": { "type": "array", "items": { "type": "object" } }
+      },
+      "description": "Unified Chinese readability from hybrid pipeline (rules for short text < 50 chars, SVM for long text >= 50 chars)"
+    },
+
+    "ReviewErrorResponse": {
+      "type": "object",
+      "required": ["error_code", "message"],
+      "properties": {
+        "error_code": {
+          "enum": ["BAD_URL", "AUTH_FAILED", "TIMEOUT", "WORKER_FAILED", "INTERNAL"]
+        },
+        "message": { "type": "string" },
+        "details": { "type": "object", "description": "Optional extra context for debugging" }
+      }
+    }
+  }
+}

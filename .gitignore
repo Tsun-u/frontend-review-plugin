@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+deepgaze_checkpoints/
+.DS_Store
+*.log
+
+# 受版權保護的第三方資料 / 模型（不散布，見 server/app/chinese_readability/data/DATA.md）
+server/app/chinese_readability/data/lexicon.db
+server/app/chinese_readability/data/*.joblib
+server/app/chinese_readability/data/naer/

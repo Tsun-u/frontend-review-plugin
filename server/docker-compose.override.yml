@@ -1,0 +1,11 @@
+services:
+  api:
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  fixture-server:
+    image: nginx:alpine
+    volumes:
+      - ./tests/fixtures/integration_pages:/usr/share/nginx/html:ro
