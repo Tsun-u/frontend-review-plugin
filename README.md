@@ -84,7 +84,7 @@ Client (Claude Code)          Server (FastAPI + Docker)
 
 ## 中文可讀性資料
 
-中文可讀性功能依賴 NAER/TBCL 詞庫與訓練模型，因著作權考量**不隨 repo 散布**。取得與重建方式見 [`data/DATA.md`](server/app/chinese_readability/data/DATA.md)。缺少時其餘功能（Lighthouse / WCAG / DeepGaze / Nielsen）不受影響。
+中文可讀性功能用 CKIP Transformers 做斷詞（開源套件，首次執行自動下載模型），可讀性分級則依賴 NAER／教育部／Unihan 的字表詞頻資料，與以人工標註語料訓練的分級模型權重。**後者（字表資料與模型權重）因著作權考量不隨 repo 散布**——取得與重建方式見 [`data/DATA.md`](server/app/chinese_readability/data/DATA.md)。缺少時其餘功能（Lighthouse / WCAG / DeepGaze / Nielsen）不受影響。
 
 ## 開發環境
 

@@ -1,13 +1,12 @@
 """
 Chinese readability hybrid pipeline.
 
-依文字長度自動分流：
-  - 中文字數 < SHORT_THRESHOLD  → TBCL 規則型（短文字，UI 場景）
-  - 中文字數 >= LONG_THRESHOLD   → paper 31 features SVM（長文字，說明/條款）
-  - 中間區段                      → 兩者都跑、合併（v2 再做）
+依中文字數分流（SHORT_THRESHOLD = 50）：
+  - < 50 字   → 短文字 supervised v2（tbcl_supervised_v2：RF + 跨主題詞頻 + 人工標註 labels）
+  - >= 50 字  → 長文字 SVM（svm_sung2014_v1：Sung 2014 復刻 31 特徵）
 
-SVM 部分尚未實作（Task #5+#6），暫時對所有文字 fallback 到規則型，
-backend 標籤會誠實標示為 tbcl_rules_v1_fallback。
+任一模型權重檔缺失時，誠實 fallback 到 TBCL 規則型
+（短文字 → tbcl_rules_v1；長文字 → tbcl_rules_v1_fallback）。
 """
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -25,7 +24,7 @@ LONG_THRESHOLD = 200      # >= 200 字確定為長文字模式
 BackendType = Literal[
     "tbcl_rules_v1",            # 舊版短文字規則型（NAER 三等七級 lookup，已棄用）
     "tbcl_supervised_v2",       # 新版短文字 supervised classifier（RF + 跨主題詞頻 + mtms labels）
-    "tbcl_rules_v1_fallback",   # 長文字但 SVM 未實作時的退路
+    "tbcl_rules_v1_fallback",   # 長文字 SVM model 缺檔時的退路
     "svm_sung2014_v1",          # 長文字 paper 復刻 SVM
     "hybrid_v1",                # 中間區段兩者合併
 ]

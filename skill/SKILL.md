@@ -44,7 +44,7 @@ curl -s -X POST "$REVIEW_API_BASE_URL/review/objective" \
   -d '{"url": "<TARGET_URL>", "viewports": ["desktop", "tablet", "mobile"]}'
 ```
 
-This returns: lighthouse scores, axe-core violations, APCA+WCAG extended checker results, multi-viewport screenshots, DeepGaze saliency heatmap, English readability metrics, and worker_warnings.
+This returns: lighthouse scores, axe-core violations, APCA+WCAG extended checker results, multi-viewport screenshots, DeepGaze saliency heatmap, readability metrics (English textstat metrics, or — for zh pages — Chinese L1–L4 from the server pipeline), and worker_warnings.
 
 **Check `worker_warnings` immediately.** If any worker failed (lighthouse timeout, axe injection error, deepgaze failure), note which metrics are missing and flag that conclusions based on those metrics should be treated as incomplete.
 
@@ -57,7 +57,7 @@ If you have Playwright MCP, you can also run lighthouse locally for comparison.
 With the screenshots and data from Step 1, evaluate using these rubrics:
 
 1. **Nielsen 10 Heuristics** — read `rubrics/nielsen.md`, evaluate each heuristic against the screenshots
-2. **Chinese Readability** (if page is zh-TW/zh-CN) — read `rubrics/chinese-readability-stopgap.md`, estimate grade level and identify hard sentences
+2. **Chinese Readability** (if page is zh-TW/zh-CN) — the server already returns the overall level (L1–L4); read `rubrics/chinese-readability-stopgap.md` to identify hard words and hard sentences at the sentence level
 3. **Visual UX** — read `rubrics/visual-ux.md`, check alt text accuracy, visual hierarchy, action affordance
 
 **⚠️ 文字樣式細節不要純憑視覺**：超連結底線、刪除線、字重、斜體等細節，截圖肉眼容易漏判。佐證優先序：(1) server response 的 `text_styling` 欄位 → (2) Chrome MCP `getComputedStyle()` → (3) 都沒有就在報告明確標「憑視覺、未經 computed 驗證」。詳見 `rubrics/visual-ux.md` 的「文字細節佐證原則」。
@@ -91,7 +91,7 @@ For each finding, include:
 5. **axe-core Violations** — from server's axe scan
 6. **DeepGaze Analysis** — is the primary CTA in the top attention zone? Include heatmap link.
 7. **Nielsen Heuristic Evaluation** — your subjective assessment per heuristic
-8. **Readability** — English Flesch-Kincaid or Chinese estimated grade + hard sentences
+8. **Readability** — English Flesch-Kincaid or Chinese readability level (L1–L4) + hard sentences
 9. **Visual UX Notes** — alt text, hierarchy, affordance
 
 ### Footer
@@ -139,7 +139,7 @@ server 不讀檔、不存任何東西，報告在本機渲染。
 ## Related Files
 
 - `rubrics/nielsen.md` — Nielsen 10 heuristics evaluation rubric
-- `rubrics/chinese-readability-stopgap.md` — Chinese readability LLM stop-gap rubric
+- `rubrics/chinese-readability-stopgap.md` — Chinese readability LLM sentence-level rubric
 - `rubrics/visual-ux.md` — Visual layer UX heuristic
 - `examples/good-review.md` — Good review report example
 - `examples/bad-review.md` — Common mistakes to avoid

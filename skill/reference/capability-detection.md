@@ -22,8 +22,8 @@ At the start of every review, detect what tools are available and route work acc
 | Multi-viewport screenshots | Server | Can also capture locally | — |
 | DOM / text extraction | Server | Can also extract locally | — |
 | English readability | Server | — | — |
-| Chinese readability (v0.1) | — | — | — |
-| Chinese readability (LLM stop-gap) | **You do this** | — | — |
+| Chinese readability (overall L1–L4) | Server (v2.0 pipeline) | — | — |
+| Chinese readability (sentence-level) | **You do this** (rubric) | — | — |
 | Nielsen heuristic evaluation | **You do this** | — | — |
 | Visual UX evaluation | **You do this** | — | — |
 | Focus order simulation | — | — | `press_key('Tab')` loop |
