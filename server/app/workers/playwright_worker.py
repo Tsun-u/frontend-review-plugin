@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from langdetect import detect
-from playwright.async_api import async_playwright
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
 
 from app.models import (
     AxeViolation,
@@ -22,6 +22,12 @@ CHECKER_JS = (Path(__file__).parent / "wcag" / "apca-wcag-checker.js").read_text
 TEXT_STYLING_JS = (Path(__file__).parent / "text_styling.js").read_text()
 
 AXE_CORE_PATH = Path(__file__).parent / "wcag" / "axe.min.js"
+
+PAGE_LOAD_TIMEOUT_MS = 30000
+# Pages that keep a connection open (Cloudflare Turnstile, live widgets) never
+# go network-idle; the wait is capped so the worker stays inside the
+# orchestrator's 90 s budget.
+NETWORK_IDLE_TIMEOUT_MS = 5000
 
 VIEWPORT_SIZES = {
     # width/height = CSS viewport (DIP); dsf = device_scale_factor (DPR)
@@ -45,6 +51,14 @@ async def _inject_auth(ctx, auth: ReviewAuth | None) -> None:
         raise ValueError("auth injection failed: invalid cookie or header format")
 
 
+async def _open_page(page, url: str) -> None:
+    await page.goto(url, wait_until="load", timeout=PAGE_LOAD_TIMEOUT_MS)
+    try:
+        await page.wait_for_load_state("networkidle", timeout=NETWORK_IDLE_TIMEOUT_MS)
+    except PlaywrightTimeoutError:
+        pass
+
+
 async def run_playwright_review(
     url: str, viewports: list[str], review_id: str, auth: ReviewAuth | None = None
 ) -> PlaywrightWorkerOutput:
@@ -65,7 +79,7 @@ async def run_playwright_review(
             )
             await _inject_auth(ctx, auth)
             page = await ctx.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await _open_page(page, url)
             await page.wait_for_timeout(500)
 
             png = await page.screenshot(full_page=True)
@@ -244,7 +258,7 @@ async def _run_axe(url: str, auth: ReviewAuth | None = None) -> tuple[list[AxeVi
             ctx = await browser.new_context()
             await _inject_auth(ctx, auth)
             page = await ctx.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await _open_page(page, url)
             await page.add_script_tag(content=AXE_CORE_PATH.read_text())
             results = await page.evaluate(
                 """async () => {
